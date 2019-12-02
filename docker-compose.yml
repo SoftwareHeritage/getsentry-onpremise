@@ -10,7 +10,6 @@ x-sentry-defaults: &sentry_defaults
   image: sentry-onpremise-local
   depends_on:
     - redis
-    - postgres
     - memcached
     - smtp
     - snuba-api
@@ -55,11 +54,6 @@ services:
     image: 'redis:5.0-alpine'
     volumes:
       - 'sentry-redis:/data'
-  postgres:
-    << : *restart_policy
-    image: 'postgres:9.6'
-    volumes:
-      - 'sentry-postgres:/var/lib/postgresql/data'
   zookeeper:
     << : *restart_policy
     image: 'confluentinc/cp-zookeeper:5.1.2'
@@ -144,8 +138,6 @@ services:
     command: '"0 0 * * * gosu sentry sentry cleanup --days $SENTRY_EVENT_RETENTION_DAYS"'
 volumes:
   sentry-data:
-    external: true
-  sentry-postgres:
     external: true
   sentry-redis:
     external: true
