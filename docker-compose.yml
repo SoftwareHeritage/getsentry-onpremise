@@ -54,32 +54,6 @@ services:
     image: 'redis:5.0-alpine'
     volumes:
       - 'sentry-redis:/data'
-  zookeeper:
-    << : *restart_policy
-    image: 'confluentinc/cp-zookeeper:5.1.2'
-    environment:
-      ZOOKEEPER_CLIENT_PORT: '2181'
-      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: 'ERROR'
-      ZOOKEEPER_TOOLS_LOG4J_LOGLEVEL: 'ERROR'
-    volumes:
-      - 'sentry-zookeeper:/var/lib/zookeeper'
-  kafka:
-    << : *restart_policy
-    depends_on:
-      - zookeeper
-    image: 'confluentinc/cp-kafka:5.1.2'
-    environment:
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENERS: 'INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092'
-      KAFKA_ADVERTISED_LISTENERS: 'INTERNAL://kafka:9093,EXTERNAL://kafka:9092'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT'
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: '1'
-      KAFKA_LOG4J_LOGGERS: 'kafka.cluster=WARN,kafka.controller=WARN,kafka.coordinator=WARN,kafka.log=WARN,kafka.server=WARN,kafka.zookeeper=WARN,state.change.logger=WARN'
-      KAFKA_LOG4J_ROOT_LOGLEVEL: 'ERROR'
-      KAFKA_TOOLS_LOG4J_LOGLEVEL: 'ERROR'
-    volumes:
-      - 'sentry-kafka:/var/lib/kafka'
   clickhouse:
     << : *restart_policy
     image: 'yandex/clickhouse-server:19.4'
@@ -140,10 +114,6 @@ volumes:
   sentry-data:
     external: true
   sentry-redis:
-    external: true
-  sentry-zookeeper:
-    external: true
-  sentry-kafka:
     external: true
   sentry-clickhouse:
     external: true
