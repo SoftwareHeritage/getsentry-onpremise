@@ -85,8 +85,6 @@ echo "Creating volumes for persistent storage..."
 echo "Created $(docker volume create --name=sentry-data)."
 echo "Created $(docker volume create --name=sentry-postgres)."
 echo "Created $(docker volume create --name=sentry-redis)."
-echo "Created $(docker volume create --name=sentry-zookeeper)."
-echo "Created $(docker volume create --name=sentry-kafka)."
 echo "Created $(docker volume create --name=sentry-clickhouse)."
 echo "Created $(docker volume create --name=sentry-symbolicator)."
 
@@ -121,7 +119,7 @@ else
 fi
 
 echo "Boostrapping Snuba..."
-docker-compose up -d kafka redis clickhouse
+docker-compose up -d redis clickhouse
 until $(docker-compose run --rm clickhouse clickhouse-client -h clickhouse --query="SHOW TABLES;" | grep -q sentry_local); do
   # `bootstrap` is for fresh installs, and `migrate` is for existing installs
   # Running them both for both cases is harmless so we blindly run them
