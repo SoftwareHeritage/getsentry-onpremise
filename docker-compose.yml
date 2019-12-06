@@ -18,7 +18,7 @@ x-sentry-defaults: &sentry_defaults
   environment:
     SNUBA: 'http://snuba-api:1218'
   volumes:
-    - 'sentry-data:/var/lib/sentry/files'
+    - 'sentry-data:/data'
 x-snuba-defaults: &snuba_defaults
   << : *restart_policy
   depends_on:
@@ -28,7 +28,7 @@ x-snuba-defaults: &snuba_defaults
   environment:
     SNUBA_SETTINGS: docker
     CLICKHOUSE_HOST: clickhouse
-    DEFAULT_BROKERS: 'kafka:9093'
+    DEFAULT_BROKERS: 'kafka:9092'
     REDIS_HOST: redis
     # TODO: Remove these after getsentry/snuba#353
     UWSGI_MAX_REQUESTS: '10000'
@@ -86,6 +86,8 @@ services:
       args:
         BASE_IMAGE: 'getsentry/symbolicator:latest'
     command: '"55 23 * * * gosu symbolicator symbolicator cleanup"'
+    volumes:
+      - 'sentry-symbolicator:/data'
   web:
     << : *sentry_defaults
     ports:
