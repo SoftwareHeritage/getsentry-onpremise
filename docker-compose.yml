@@ -11,7 +11,6 @@ x-sentry-defaults: &sentry_defaults
   depends_on:
     - redis
     - memcached
-    - smtp
     - snuba-api
     - snuba-consumer
     - snuba-replacer
@@ -41,9 +40,6 @@ x-snuba-defaults: &snuba_defaults
     UWSGI_IGNORE_WRITE_ERRORS: 'true'
     UWSGI_DISABLE_WRITE_EXCEPTION:  'true'
 services:
-  smtp:
-    << : *restart_policy
-    image: tianon/exim4
   memcached:
     << : *restart_policy
     image: 'memcached:1.5-alpine'
