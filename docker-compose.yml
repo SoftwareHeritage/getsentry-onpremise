@@ -49,7 +49,7 @@ services:
       - 'sentry-redis:/data'
   clickhouse:
     << : *restart_policy
-    image: 'yandex/clickhouse-server:19.4'
+    image: 'yandex/clickhouse-server:19.11'
     ulimits:
       nofile:
         soft: 262144
@@ -97,6 +97,10 @@ services:
   worker:
     << : *sentry_defaults
     command: run worker
+  post-process-forwarder:
+    << : *sentry_defaults
+    # Increase `--commit-batch-size 1` below to deal with high-load environments.
+    command: run post-process-forwarder --commit-batch-size 1
   sentry-cleanup:
     << : *sentry_defaults
     image: sentry-cleanup-onpremise-local

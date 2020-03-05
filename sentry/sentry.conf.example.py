@@ -29,6 +29,8 @@ SENTRY_USE_BIG_INTS = True
 # and thus various UI optimizations should be enabled.
 SENTRY_SINGLE_ORGANIZATION = True
 
+SENTRY_OPTIONS["system.event-retention-days"] = int(env('SENTRY_EVENT_RETENTION_DAYS', '90'))
+
 #########
 # Redis #
 #########
@@ -132,7 +134,7 @@ SENTRY_TSDB = "sentry.tsdb.redissnuba.RedisSnubaTSDB"
 # SNUBA #
 #########
 
-SENTRY_SEARCH = "sentry.search.snuba.SnubaSearchBackend"
+SENTRY_SEARCH = "sentry.search.snuba.EventsDatasetSnubaSearchBackend"
 SENTRY_SEARCH_OPTIONS = {}
 SENTRY_TAGSTORE_OPTIONS = {}
 
@@ -156,6 +158,7 @@ SENTRY_WEB_OPTIONS = {
     # This is needed to prevent https://git.io/fj7Lw
     "uwsgi-socket": None,
     "http-keepalive": True,
+    "http-chunked-input": True,
     "memory-report": False,
     # 'workers': 3,  # the number of web workers
 }
@@ -185,18 +188,16 @@ SENTRY_FEATURES.update(
         for feature in (
             "organizations:discover",
             "organizations:events",
+            "organizations:discover-basic",
+            "organizations:discover-query",
+            "organizations:events-v2",
             "organizations:global-views",
             "organizations:integrations-issue-basic",
             "organizations:integrations-issue-sync",
             "organizations:invite-members",
-            "organizations:new-issue-ui",
-            "organizations:repos",
-            "organizations:require-2fa",
-            "organizations:sentry10",
             "organizations:sso-basic",
             "organizations:sso-rippling",
             "organizations:sso-saml2",
-            "organizations:suggested-commits",
             "projects:custom-inbound-filters",
             "projects:data-forwarding",
             "projects:discard-groups",
@@ -209,11 +210,9 @@ SENTRY_FEATURES.update(
 
 ######################
 # GitHub Integration #
-#####################
+######################
 
-# GITHUB_APP_ID = 'YOUR_GITHUB_APP_ID'
-# GITHUB_API_SECRET = 'YOUR_GITHUB_API_SECRET'
-# GITHUB_EXTENDED_PERMISSIONS = ['repo']
+GITHUB_EXTENDED_PERMISSIONS = ['repo']
 
 #########################
 # Bitbucket Integration #
