@@ -14,9 +14,18 @@ MIN_RAM=2400 # MB
 
 SENTRY_CONFIG_PY='sentry/sentry.conf.py'
 SENTRY_CONFIG_YML='sentry/config.yml'
+SYMBOLICATOR_CONFIG_YML='symbolicator/config.yml'
 RELAY_CONFIG_YML='relay/config.yml'
 RELAY_CREDENTIALS_JSON='relay/credentials.json'
 SENTRY_EXTRA_REQUIREMENTS='sentry/requirements.txt'
+
+# Courtesy of https://stackoverflow.com/a/2183063/90297
+trap_with_arg() {
+  func="$1" ; shift
+  for sig ; do
+      trap "$func $sig "'$LINENO' "$sig"
+  done
+}
 
 DID_CLEAN_UP=0
 # the cleanup function will be the exit point
@@ -24,11 +33,17 @@ cleanup () {
   if [ "$DID_CLEAN_UP" -eq 1 ]; then
     return 0;
   fi
-  echo "Cleaning up..."
-  $dc stop &> /dev/null
   DID_CLEAN_UP=1
+
+  if [ "$1" != "EXIT" ]; then
+    echo "An error occurred, caught SIG$1 on line $2";
+    echo "Cleaning up..."
+  fi
+
+  $dc stop &> /dev/null
 }
-trap cleanup ERR INT TERM
+trap_with_arg cleanup ERR INT TERM EXIT
+
 
 echo "Checking minimum requirements..."
 
@@ -94,6 +109,8 @@ echo ""
 ensure_file_from_example $SENTRY_CONFIG_PY
 ensure_file_from_example $SENTRY_CONFIG_YML
 ensure_file_from_example $SENTRY_EXTRA_REQUIREMENTS
+ensure_file_from_example $SYMBOLICATOR_CONFIG_YML
+ensure_file_from_example $RELAY_CONFIG_YML
 
 if grep -xq "system.secret-key: '!!changeme!!'" $SENTRY_CONFIG_YML ; then
     echo ""
@@ -107,40 +124,40 @@ if grep -xq "system.secret-key: '!!changeme!!'" $SENTRY_CONFIG_YML ; then
 fi
 
 replace_tsdb() {
-    if (
-        [ -f "$SENTRY_CONFIG_PY" ] &&
-        ! grep -xq 'SENTRY_TSDB = "sentry.tsdb.redissnuba.RedisSnubaTSDB"' "$SENTRY_CONFIG_PY"
-    ); then
-        tsdb_settings="SENTRY_TSDB = \"sentry.tsdb.redissnuba.RedisSnubaTSDB\"
+  if (
+    [ -f "$SENTRY_CONFIG_PY" ] &&
+    ! grep -xq 'SENTRY_TSDB = "sentry.tsdb.redissnuba.RedisSnubaTSDB"' "$SENTRY_CONFIG_PY"
+  ); then
+    tsdb_settings="SENTRY_TSDB = \"sentry.tsdb.redissnuba.RedisSnubaTSDB\"
 
-# Automatic switchover 90 days after $(date). Can be removed afterwards.
-SENTRY_TSDB_OPTIONS = {\"switchover_timestamp\": $(date +%s) + (90 * 24 * 3600)}"
+    # Automatic switchover 90 days after $(date). Can be removed afterwards.
+    SENTRY_TSDB_OPTIONS = {\"switchover_timestamp\": $(date +%s) + (90 * 24 * 3600)}"
 
-        if grep -q 'SENTRY_TSDB_OPTIONS = ' "$SENTRY_CONFIG_PY"; then
-            echo "Not attempting automatic TSDB migration due to presence of SENTRY_TSDB_OPTIONS"
-        else
-            echo "Attempting to automatically migrate to new TSDB"
-            # Escape newlines for sed
-            tsdb_settings="${tsdb_settings//$'\n'/\\n}"
-            cp "$SENTRY_CONFIG_PY" "$SENTRY_CONFIG_PY.bak"
-            sed -i -e "s/^SENTRY_TSDB = .*$/${tsdb_settings}/g" "$SENTRY_CONFIG_PY" || true
+    if grep -q 'SENTRY_TSDB_OPTIONS = ' "$SENTRY_CONFIG_PY"; then
+      echo "Not attempting automatic TSDB migration due to presence of SENTRY_TSDB_OPTIONS"
+    else
+      echo "Attempting to automatically migrate to new TSDB"
+      # Escape newlines for sed
+      tsdb_settings="${tsdb_settings//$'\n'/\\n}"
+      cp "$SENTRY_CONFIG_PY" "$SENTRY_CONFIG_PY.bak"
+      sed -i -e "s/^SENTRY_TSDB = .*$/${tsdb_settings}/g" "$SENTRY_CONFIG_PY" || true
 
-            if grep -xq 'SENTRY_TSDB = "sentry.tsdb.redissnuba.RedisSnubaTSDB"' "$SENTRY_CONFIG_PY"; then
-                echo "Migrated TSDB to Snuba. Old configuration file backed up to $SENTRY_CONFIG_PY.bak"
-                return
-            fi
+      if grep -xq 'SENTRY_TSDB = "sentry.tsdb.redissnuba.RedisSnubaTSDB"' "$SENTRY_CONFIG_PY"; then
+        echo "Migrated TSDB to Snuba. Old configuration file backed up to $SENTRY_CONFIG_PY.bak"
+        return
+      fi
 
-            echo "Failed to automatically migrate TSDB. Reverting..."
-            mv "$SENTRY_CONFIG_PY.bak" "$SENTRY_CONFIG_PY"
-            echo "$SENTRY_CONFIG_PY restored from backup."
-        fi
-
-        echo "WARN: Your Sentry configuration uses a legacy data store for time-series data. Remove the options SENTRY_TSDB and SENTRY_TSDB_OPTIONS from $SENTRY_CONFIG_PY and add:"
-        echo ""
-        echo "$tsdb_settings"
-        echo ""
-        echo "For more information please refer to https://github.com/getsentry/onpremise/pull/430"
+      echo "Failed to automatically migrate TSDB. Reverting..."
+      mv "$SENTRY_CONFIG_PY.bak" "$SENTRY_CONFIG_PY"
+      echo "$SENTRY_CONFIG_PY restored from backup."
     fi
+
+    echo "WARN: Your Sentry configuration uses a legacy data store for time-series data. Remove the options SENTRY_TSDB and SENTRY_TSDB_OPTIONS from $SENTRY_CONFIG_PY and add:"
+    echo ""
+    echo "$tsdb_settings"
+    echo ""
+    echo "For more information please refer to https://github.com/getsentry/onpremise/pull/430"
+  fi
 }
 
 replace_tsdb
@@ -169,15 +186,45 @@ $dc build --force-rm --parallel
 echo ""
 echo "Docker images built."
 
-
-ZOOKEEPER_LOG_FILE_COUNT=$($dcr zookeeper bash -c 'ls 2>/dev/null -Ubad1 -- /var/lib/zookeeper/log/version-2/* | wc -l | tr -d '[:space:]'')
-ZOOKEEPER_SNAPSHOT_FILE_COUNT=$($dcr zookeeper bash -c 'ls 2>/dev/null -Ubad1 -- /var/lib/zookeeper/data/version-2/* | wc -l | tr -d '[:space:]'')
-# This is a workaround for a ZK upgrade bug: https://issues.apache.org/jira/browse/ZOOKEEPER-3056
-if [ "$ZOOKEEPER_LOG_FILE_COUNT" -gt "0" ] && [ "$ZOOKEEPER_SNAPSHOT_FILE_COUNT" -eq "0" ]; then
-  $dcr -v $(pwd)/zookeeper:/temp zookeeper bash -c 'cp /temp/snapshot.0 /var/lib/zookeeper/data/version-2/snapshot.0'
-  $dc run -d -e ZOOKEEPER_SNAPSHOT_TRUST_EMPTY=true zookeeper
+ZOOKEEPER_SNAPSHOT_FOLDER_EXISTS=$($dcr zookeeper bash -c 'ls 2>/dev/null -Ubad1 -- /var/lib/zookeeper/data/version-2 | wc -l | tr -d '[:space:]'')
+if [ "$ZOOKEEPER_SNAPSHOT_FOLDER_EXISTS" -eq "1" ]; then
+  ZOOKEEPER_LOG_FILE_COUNT=$($dcr zookeeper bash -c 'ls 2>/dev/null -Ubad1 -- /var/lib/zookeeper/log/version-2/* | wc -l | tr -d '[:space:]'')
+  ZOOKEEPER_SNAPSHOT_FILE_COUNT=$($dcr zookeeper bash -c 'ls 2>/dev/null -Ubad1 -- /var/lib/zookeeper/data/version-2/* | wc -l | tr -d '[:space:]'')
+  # This is a workaround for a ZK upgrade bug: https://issues.apache.org/jira/browse/ZOOKEEPER-3056
+  if [ "$ZOOKEEPER_LOG_FILE_COUNT" -gt "0" ] && [ "$ZOOKEEPER_SNAPSHOT_FILE_COUNT" -eq "0" ]; then
+    $dcr -v $(pwd)/zookeeper:/temp zookeeper bash -c 'cp /temp/snapshot.0 /var/lib/zookeeper/data/version-2/snapshot.0'
+    $dc run -d -e ZOOKEEPER_SNAPSHOT_TRUST_EMPTY=true zookeeper
+  fi
 fi
 
+# [begin] Snuba/Clickhouse transactions table rebuild
+clickhouse_query () { $dcr clickhouse clickhouse-client --host clickhouse -q "$1"; }
+$dc up -d clickhouse
+set +e
+CLICKHOUSE_CLIENT_MAX_RETRY=5
+# Wait until clickhouse server is up
+until clickhouse_query 'SELECT 1' > /dev/null; do
+  ((CLICKHOUSE_CLIENT_MAX_RETRY--))
+  [[ CLICKHOUSE_CLIENT_MAX_RETRY -eq 0 ]] && echo "Clickhouse server failed to come up in 5 tries." && exit 1;
+   echo "Trying again. Remaining tries #$CLICKHOUSE_CLIENT_MAX_RETRY"
+  sleep 0.5;
+done
+set -e
+
+SNUBA_HAS_TRANSACTIONS_TABLE=$(clickhouse_query 'EXISTS TABLE transactions_local' | tr -d '\n\r')
+SNUBA_TRANSACTIONS_NEEDS_UPDATE=$([ "$SNUBA_HAS_TRANSACTIONS_TABLE" == "1" ] && clickhouse_query 'SHOW CREATE TABLE transactions_local' | grep -v 'SAMPLE BY' || echo '')
+
+if [ "$SNUBA_TRANSACTIONS_NEEDS_UPDATE" ]; then
+  SNUBA_TRANSACTIONS_TABLE_CONTENTS=$(clickhouse_query "SELECT * FROM transactions_local LIMIT 1")
+  if [ -z $SNUBA_TRANSACTIONS_TABLE_CONTENTS ]; then
+    echo "Dropping the old transactions table from Clickhouse...";
+    clickhouse_query 'DROP TABLE transactions_local'
+    echo "Done."
+  else
+    echo "Seems like your Clickhouse transactions table is old and non-empty. You may experience issues if/when you have more than 10000 records in this table. See https://github.com/getsentry/sentry/pull/19882 for more information and consider disabling the 'discover2.tags_facet_enable_sampling' feature flag.";
+  fi
+fi
+# [end] Snuba/Clickhouse transactions table rebuild
 
 echo "Bootstrapping and migrating Snuba..."
 $dcr snuba-api bootstrap --force
@@ -240,22 +287,6 @@ if [ ! -f "$RELAY_CREDENTIALS_JSON" ]; then
   $dcr --no-deps -v $(pwd)/$RELAY_CONFIG_YML:/tmp/config.yml relay --config /tmp credentials generate --stdout > "$RELAY_CREDENTIALS_JSON"
   echo "Relay credentials written to $RELAY_CREDENTIALS_JSON"
 fi
-
-RELAY_CREDENTIALS=$(sed -n 's/^.*"public_key"[[:space:]]*:[[:space:]]*"\([a-zA-Z0-9_-]\{1,\}\)".*$/\1/p' "$RELAY_CREDENTIALS_JSON")
-if [ -z "$RELAY_CREDENTIALS" ]; then
-  >&2 echo "FAIL: Cannot read credentials back from $RELAY_CREDENTIALS_JSON."
-  >&2 echo "      Please ensure this file is readable and contains valid credentials."
-  >&2 echo ""
-  exit 1
-fi
-
-if ! grep -q "\"$RELAY_CREDENTIALS\"" "$SENTRY_CONFIG_PY"; then
-  echo "SENTRY_RELAY_WHITELIST_PK = (SENTRY_RELAY_WHITELIST_PK or []) + ([\"$RELAY_CREDENTIALS\"])" >> "$SENTRY_CONFIG_PY"
-  echo "Relay public key written to $SENTRY_CONFIG_PY"
-  echo ""
-fi
-
-cleanup
 
 echo ""
 echo "----------------"

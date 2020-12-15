@@ -16,6 +16,7 @@ x-sentry-defaults: &sentry_defaults
     - snuba-consumer
     - snuba-outcomes-consumer
     - snuba-sessions-consumer
+    - snuba-transactions-consumer
     - snuba-replacer
     - symbolicator
     - kafka
@@ -105,6 +106,10 @@ services:
   snuba-sessions-consumer:
     << : *snuba_defaults
     command: consumer --storage sessions_raw --auto-offset-reset=latest --max-batch-time-ms 750
+  # Kafka consumer responsible for feeding transactions data into Clickhouse
+  snuba-transactions-consumer:
+    << : *snuba_defaults
+    command: consumer --storage transactions --auto-offset-reset=latest --max-batch-time-ms 750
   snuba-replacer:
     << : *snuba_defaults
     command: replacer --storage events --auto-offset-reset=latest --max-batch-size 3
@@ -121,7 +126,11 @@ services:
     image: 'getsentry/symbolicator:$SYMBOLICATOR_VERSION'
     volumes:
       - 'sentry-symbolicator:/data'
-    command: run
+      - type: bind
+        read_only: true
+        source: ./symbolicator
+        target: /etc/symbolicator
+    command: run -c /etc/symbolicator/config.yml
   symbolicator-cleanup:
     << : *restart_policy
     image: symbolicator-cleanup-onpremise-local
