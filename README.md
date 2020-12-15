@@ -1,11 +1,11 @@
-# Sentry 10 On-Premise [![Build Status][build-status-image]][build-status-url]
+# Sentry 20.6.0 On-Premise [![Build Status][build-status-image]][build-status-url]
 
 Official bootstrap for running your own [Sentry](https://sentry.io/) with [Docker](https://www.docker.com/).
 
 ## Requirements
 
  * Docker 17.05.0+
- * Compose 1.19.0+
+ * Compose 1.23.0+
 
 ## Minimum Hardware Requirements:
 
@@ -29,21 +29,15 @@ If you have any issues or questions, our [Community Forum](https://forum.sentry.
 
 ## Versioning
 
+If you want to install a specific release of Sentry, use the tags/releases on this repo.
+
 We continously push the Docker image for each commit made into [Sentry](https://github.com/getsentry/sentry), and other services such as [Snuba](https://github.com/getsentry/snuba) or [Symbolicator](https://github.com/getsentry/symbolicator) to [our Docker Hub](https://hub.docker.com/u/getsentry) and tag the latest version on master as `:latest`. This is also usually what we have on sentry.io and what the install script uses. You can use a custom Sentry image, such as a modified version that you have built on your own, or simply a specific commit hash by setting the `SENTRY_IMAGE` environment variable to that image name before running `./install.sh`:
-
-```shell
-SENTRY_IMAGE=getsentry/sentry:10 ./install.sh
-```
-
-or
 
 ```shell
 SENTRY_IMAGE=getsentry/sentry:83b1380 ./install.sh
 ```
 
-If you want to use different or specific images for other services, you may create a `docker-compose.overrides.yaml` file in the repo and override the `image` field for the corresponding services.
-
-We strongly recommend keeping the `latest` tags for all, if you are using this repository directly. We also recommend using specific commit tags if you are consuming any of our Docker images in an environment that needs consistent deploys such as [a Helm chart](https://github.com/helm/charts/tree/master/stable/sentry).
+Note that this may not work for all commit SHAs as this repository evolves with Sentry and its satellite projects. It is highly recommended to check out a version of this repository that is close to the timestamp of the Sentry commit you are installing.
 
 ## Event Retention
 
@@ -63,10 +57,9 @@ The included `install.sh` script is meant to be idempotent and to bring you to t
 
 ## Resources
 
- * [Documentation](https://docs.sentry.io/server/)
+ * [Documentation](https://docs.sentry.io/development/server/)
  * [Bug Tracker](https://github.com/getsentry/onpremise/issues)
- * [Forums](https://forum.sentry.io/c/on-premise)
- * [Discord](https://discord.gg/mg5V76F) (Sentry Community, #sentry-server)
+ * [Community Forums](https://forum.sentry.io/c/on-premise)
 
 
 [build-status-image]: https://api.travis-ci.com/getsentry/onpremise.svg?branch=master

@@ -7,37 +7,35 @@ x-sentry-defaults: &sentry_defaults
     context: ./sentry
     args:
       - SENTRY_IMAGE
+      - SENTRY_VERSION
   image: sentry-onpremise-local
   depends_on:
     - redis
     - memcached
     - snuba-api
     - snuba-consumer
+    - snuba-outcomes-consumer
+    - snuba-sessions-consumer
     - snuba-replacer
     - symbolicator
   environment:
+    SENTRY_CONF: '/etc/sentry'
     SNUBA: 'http://snuba-api:1218'
   volumes:
     - 'sentry-data:/data'
+    - './sentry:/etc/sentry'
 x-snuba-defaults: &snuba_defaults
   << : *restart_policy
   depends_on:
     - redis
     - clickhouse
-  image: 'getsentry/snuba:latest'
+  image: 'getsentry/snuba:$SENTRY_VERSION'
   environment:
     SNUBA_SETTINGS: docker
     CLICKHOUSE_HOST: clickhouse
     REDIS_HOST: redis
-    # TODO: Remove these after getsentry/snuba#353
     UWSGI_MAX_REQUESTS: '10000'
     UWSGI_DISABLE_LOGGING: 'true'
-    UWSGI_ENABLE_THREADS: 'true'
-    UWSGI_DIE_ON_TERM: 'true'
-    UWSGI_NEED_APP: 'true'
-    UWSGI_IGNORE_SIGPIPE: 'true'
-    UWSGI_IGNORE_WRITE_ERRORS: 'true'
-    UWSGI_DISABLE_WRITE_EXCEPTION:  'true'
 services:
   memcached:
     << : *restart_policy
@@ -49,54 +47,68 @@ services:
       - 'sentry-redis:/data'
   clickhouse:
     << : *restart_policy
-    image: 'yandex/clickhouse-server:19.11'
+    image: 'yandex/clickhouse-server:19.17'
     ulimits:
       nofile:
         soft: 262144
         hard: 262144
     volumes:
       - 'sentry-clickhouse:/var/lib/clickhouse'
+      - 'sentry-clickhouse-log:/var/log/clickhouse-server'
   snuba-api:
     << : *snuba_defaults
+  # Kafka consumer responsible for feeding events into Clickhouse
   snuba-consumer:
     << : *snuba_defaults
-    command: consumer --auto-offset-reset=latest --max-batch-time-ms 750
+    command: consumer --storage events --auto-offset-reset=latest --max-batch-time-ms 750
+  # Kafka consumer responsible for feeding outcomes into Clickhouse
+  # Use --auto-offset-reset=earliest to recover up to 7 days of TSDB data
+  # since we did not do a proper migration
+  snuba-outcomes-consumer:
+    << : *snuba_defaults
+    command: consumer --storage outcomes_raw --auto-offset-reset=earliest --max-batch-time-ms 750
+  # Kafka consumer responsible for feeding session data into Clickhouse
+  snuba-sessions-consumer:
+    << : *snuba_defaults
+    command: consumer --storage sessions_raw --auto-offset-reset=latest --max-batch-time-ms 750
   snuba-replacer:
     << : *snuba_defaults
-    command: replacer --auto-offset-reset=latest --max-batch-size 3
+    command: replacer --storage events --auto-offset-reset=latest --max-batch-size 3
   snuba-cleanup:
     << : *snuba_defaults
     image: snuba-cleanup-onpremise-local
     build:
       context: ./cron
       args:
-        BASE_IMAGE: 'getsentry/snuba:latest'
+        BASE_IMAGE: 'getsentry/snuba:$SENTRY_VERSION'
     command: '"*/5 * * * * gosu snuba snuba cleanup --dry-run False"'
   symbolicator:
     << : *restart_policy
-    image: 'getsentry/symbolicator:latest'
+    image: 'getsentry/symbolicator:$SYMBOLICATOR_VERSION'
     volumes:
       - 'sentry-symbolicator:/data'
     command: run
   symbolicator-cleanup:
+    << : *restart_policy
     image: symbolicator-cleanup-onpremise-local
     build:
       context: ./cron
       args:
-        BASE_IMAGE: 'getsentry/symbolicator:latest'
+        BASE_IMAGE: 'getsentry/symbolicator:$SYMBOLICATOR_VERSION'
     command: '"55 23 * * * gosu symbolicator symbolicator cleanup"'
     volumes:
       - 'sentry-symbolicator:/data'
   web:
     << : *sentry_defaults
-    ports:
-      - '9000:9000/tcp'
   cron:
     << : *sentry_defaults
     command: run cron
   worker:
     << : *sentry_defaults
     command: run worker
+  ingest-consumer:
+    << : *sentry_defaults
+    command: run ingest-consumer --all-consumer-types
   post-process-forwarder:
     << : *sentry_defaults
     # Increase `--commit-batch-size 1` below to deal with high-load environments.
@@ -109,6 +121,30 @@ services:
       args:
         BASE_IMAGE: 'sentry-onpremise-local'
     command: '"0 0 * * * gosu sentry sentry cleanup --days $SENTRY_EVENT_RETENTION_DAYS"'
+  nginx:
+    << : *restart_policy
+    ports:
+      - '9000:80/tcp'
+    image: 'nginx:1.16'
+    volumes:
+      - type: bind
+        read_only: true
+        source: ./nginx
+        target: /etc/nginx
+    depends_on:
+      - web
+      - relay
+  relay:
+    << : *restart_policy
+    image: 'getsentry/relay:$SENTRY_VERSION'
+    volumes:
+      - type: bind
+        read_only: true
+        source: ./relay
+        target: /work/.relay
+    depends_on:
+      - kafka
+      - redis
 volumes:
   sentry-data:
     external: true
@@ -118,3 +154,5 @@ volumes:
     external: true
   sentry-symbolicator:
     external: true
+  sentry-secrets:
+  sentry-clickhouse-log:
