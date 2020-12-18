@@ -1,4 +1,4 @@
-# Self-Hosted Sentry 20.11.1
+# Self-Hosted Sentry 20.12.1
 
 Official bootstrap for running your own [Sentry](https://sentry.io/) with [Docker](https://www.docker.com/).
 
@@ -13,9 +13,7 @@ Official bootstrap for running your own [Sentry](https://sentry.io/) with [Docke
 
 ## Setup
 
-To get started with all the defaults, simply clone the repo and run `./install.sh` in your local check-out.
-
-_If you like trying out new things, you can run `SENTRY_PYTHON3=1 ./install.sh` instead to use our brand new Python 3 images. **Keep in mind that Python 3 support is experimental at this point**_
+To get started with all the defaults, simply clone the repo and run `./install.sh` in your local check-out. Sentry uses Python 3 by default since December 4th, 2020. If you want/need to stick with the Python 2 versions of the images, you can run `SENTRY_PYTHON2=1 ./install.sh` instead. Note that we are planning to end our Python 2 support completely by January 2021.
 
 During the install, a prompt will ask if you want to create a user account. If you require that the install not be blocked by the prompt, run `./install.sh --no-user-prompt`.
 
@@ -57,9 +55,11 @@ and [Nginx](http://nginx.org/). Our recommendation is running and external Nginx
 
 _You need to be on at least Sentry 9.1.2 to be able to upgrade automatically to the latest version. If you are not, upgrade to 9.1.2 first by checking out the [9.1.2 tag](https://github.com/getsentry/onpremise/tree/9.1.2) on this repo._
 
-The included `install.sh` script is meant to be idempotent and to bring you to the latest version. What this means is you can and should run `install.sh` to upgrade to the latest version available. Remember that the output of the script will be stored in a log file, `sentry_install_log-<ISO_TIMESTAMP>.txt`, which you may share for diagnosis if anything goes wrong.
+We recommend (and sometimes require) you to upgrade Sentry one version at a time. That means if you are running 20.6.0, instead of going directly to 20.8.0, first go through 20.7.0. Skipping versions would work most of the time, but there will be times that we require you to stop at specific versions to ensure essential data migrations along the way.
 
-Also make sure to check for any difference between the example config files and your current config files in use. There might be new configuration that has to be added to your adjusted files. E.g. feature flags or server configuration.
+Pull the version of the repository that you wish to upgrade to by checking out the tagged release of this repo. Make sure to check for any difference between the example config files and your current config files in use. There might be new configuration that has to be added to your adjusted files such as feature flags or server configuration.
+
+The included `install.sh` script is meant to be idempotent and to bring you to the latest version. What this means is you can and should run `install.sh` to upgrade to the latest version available. Remember that the output of the script will be stored in a log file, `sentry_install_log-<ISO_TIMESTAMP>.txt`, which you may share for diagnosis if anything goes wrong.
 
 For more information regarding updating your Sentry installation, please visit [our documentation](https://develop.sentry.dev/self-hosted/#upgrading).
 
