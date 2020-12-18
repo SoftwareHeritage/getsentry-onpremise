@@ -1,10 +1,10 @@
-# Self-Hosted Sentry 20.9.0
+# Self-Hosted Sentry 20.10.1
 
 Official bootstrap for running your own [Sentry](https://sentry.io/) with [Docker](https://www.docker.com/).
 
 ## Requirements
 
- * Docker 19.03.8+
+ * Docker 19.03.6+
  * Compose 1.24.1+
 
 ## Minimum Hardware Requirements:
@@ -14,6 +14,8 @@ Official bootstrap for running your own [Sentry](https://sentry.io/) with [Docke
 ## Setup
 
 To get started with all the defaults, simply clone the repo and run `./install.sh` in your local check-out.
+
+_If you like trying out new things, you can run `SENTRY_PYTHON3=1 ./install.sh` instead to use our brand new Python 3 images. **Keep in mind that Python 3 support is experimental at this point**_
 
 During the install, a prompt will ask if you want to create a user account. If you require that the install not be blocked by the prompt, run `./install.sh --no-user-prompt`.
 
@@ -33,7 +35,7 @@ If you have any issues or questions, our [Community Forum](https://forum.sentry.
 
 If you want to install a specific release of Sentry, use the tags/releases on this repo.
 
-We continously push the Docker image for each commit made into [Sentry](https://github.com/getsentry/sentry), and other services such as [Snuba](https://github.com/getsentry/snuba) or [Symbolicator](https://github.com/getsentry/symbolicator) to [our Docker Hub](https://hub.docker.com/u/getsentry) and tag the latest version on master as `:latest`. This is also usually what we have on sentry.io and what the install script uses. You can use a custom Sentry image, such as a modified version that you have built on your own, or simply a specific commit hash by setting the `SENTRY_IMAGE` environment variable to that image name before running `./install.sh`:
+We continously push the Docker image for each commit made into [Sentry](https://github.com/getsentry/sentry), and other services such as [Snuba](https://github.com/getsentry/snuba) or [Symbolicator](https://github.com/getsentry/symbolicator) to [our Docker Hub](https://hub.docker.com/u/getsentry) and tag the latest version on master as `:nightly`. This is also usually what we have on sentry.io and what the install script uses. You can use a custom Sentry image, such as a modified version that you have built on your own, or simply a specific commit hash by setting the `SENTRY_IMAGE` environment variable to that image name before running `./install.sh`:
 
 ```shell
 SENTRY_IMAGE=getsentry/sentry:83b1380 ./install.sh
@@ -57,9 +59,13 @@ _You need to be on at least Sentry 9.1.2 to be able to upgrade automatically to 
 
 The included `install.sh` script is meant to be idempotent and to bring you to the latest version. What this means is you can and should run `install.sh` to upgrade to the latest version available. Remember that the output of the script will be stored in a log file, `sentry_install_log-<ISO_TIMESTAMP>.txt`, which you may share for diagnosis if anything goes wrong.
 
+Also make sure to check for any difference between the example config files and your current config files in use. There might be new configuration that has to be added to your adjusted files. E.g. feature flags or server configuration.
+
+For more information regarding updating your Sentry installation, please visit [our documentation](https://develop.sentry.dev/self-hosted/#upgrading).
+
 ## Resources
 
- * [Documentation](https://develop.sentry.dev/onpremise/)
+ * [Documentation](https://develop.sentry.dev/self-hosted/)
  * [Bug Tracker](https://github.com/getsentry/onpremise/issues)
  * [Community Forums](https://forum.sentry.io/c/on-premise)
 

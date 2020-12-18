@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-# With a tip o' the hat to https://unix.stackexchange.com/a/79077
-set -a && . ./.env && set +a
+# Read .env for default values with a tip o' the hat to https://stackoverflow.com/a/59831605/90297
+t=$(mktemp) && export -p > "$t" && set -a && . ./.env && set +a && . "$t" && rm "$t" && unset t
 
 dc="docker-compose --no-ansi"
 dcr="$dc run --rm"
@@ -11,7 +11,7 @@ dcr="$dc run --rm"
 log_file="sentry_install_log-`date +'%Y-%m-%d_%H-%M-%S'`.txt"
 exec &> >(tee -a "$log_file")
 
-MIN_DOCKER_VERSION='19.03.8'
+MIN_DOCKER_VERSION='19.03.6'
 MIN_COMPOSE_VERSION='1.24.1'
 MIN_RAM=2400 # MB
 
@@ -206,7 +206,7 @@ echo ""
 $dc pull -q --ignore-pull-failures 2>&1 | grep -v -- -onpremise-local || true
 
 # We may not have the set image on the repo (local images) so allow fails
-docker pull $SENTRY_IMAGE || true;
+docker pull ${SENTRY_IMAGE}${SENTRY_PYTHON3:+-py3} || true;
 
 echo ""
 echo "Building and tagging Docker images..."
@@ -243,6 +243,18 @@ echo "Bootstrapping and migrating Snuba..."
 $dcr snuba-api bootstrap --no-migrate --force
 $dcr snuba-api migrations migrate --force
 echo ""
+
+# NOTE: This step relies on `kafka` being available from the previous `snuba-api bootstrap` step
+# XXX(BYK): We cannot use auto.create.topics as Confluence and Apache hates it now (and makes it very hard to enable)
+EXISTING_KAFKA_TOPICS=$($dcr kafka kafka-topics --list --bootstrap-server kafka:9092 2>/dev/null)
+NEEDED_KAFKA_TOPICS="ingest-attachments ingest-transactions ingest-events"
+for topic in $NEEDED_KAFKA_TOPICS; do
+  if ! echo "$EXISTING_KAFKA_TOPICS" | grep -wq $topic; then
+    echo "Creating additional Kafka topics..."
+    $dcr kafka kafka-topics --create --topic $topic --bootstrap-server kafka:9092
+    echo ""
+  fi
+done
 
 # Very naively check whether there's an existing sentry-postgres volume and the PG version in it
 if [[ -n "$(docker volume ls -q --filter name=sentry-postgres)" && "$(docker run --rm -v sentry-postgres:/db busybox cat /db/PG_VERSION 2>/dev/null)" == "9.5" ]]; then
