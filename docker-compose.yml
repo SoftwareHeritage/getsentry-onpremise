@@ -1,6 +1,16 @@
 version: "3.4"
 x-restart-policy: &restart_policy
   restart: unless-stopped
+x-healthcheck-defaults: &healthcheck_defaults
+  # Avoid setting the interval too small, as docker uses much more CPU than one would expect.
+  # Related issues:
+  # https://github.com/moby/moby/issues/39102
+  # https://github.com/moby/moby/issues/39388
+  # https://github.com/getsentry/onpremise/issues/1000
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 10s
 x-sentry-defaults: &sentry_defaults
   <<: *restart_policy
   image: "$SENTRY_IMAGE"
@@ -50,10 +60,17 @@ x-snuba-defaults: &snuba_defaults
 services:
   memcached:
     <<: *restart_policy
-    image: "memcached:1.5-alpine"
+    image: "memcached:1.6.9-alpine"
+    healthcheck:
+      <<: *healthcheck_defaults
+      # From: https://stackoverflow.com/a/31877626/5155484
+      test: echo stats | nc 127.0.0.1 11211
   redis:
     <<: *restart_policy
-    image: "redis:5.0-alpine"
+    image: "redis:6.2.4-alpine"
+    healthcheck:
+      <<: *healthcheck_defaults
+      test: redis-cli ping
     volumes:
       - "sentry-redis:/data"
     ulimits:
@@ -74,10 +91,9 @@ services:
       - "sentry-zookeeper-log:/var/lib/zookeeper/log"
       - "sentry-secrets:/etc/zookeeper/secrets"
     healthcheck:
-      test: ["CMD-SHELL", 'echo "ruok" | nc -w 2 -q 2 localhost 2181 | grep imok']
-      interval: 10s
-      timeout: 5s
-      retries: 6
+      <<: *healthcheck_defaults
+      test:
+        ["CMD-SHELL", 'echo "ruok" | nc -w 2 -q 2 localhost 2181 | grep imok']
   kafka:
     <<: *restart_policy
     depends_on:
@@ -100,10 +116,8 @@ services:
       - "sentry-kafka-log:/var/lib/kafka/log"
       - "sentry-secrets:/etc/kafka/secrets"
     healthcheck:
-      test: ["CMD-SHELL", 'nc -z localhost 9092']
-      interval: 10s
-      timeout: 5s
-      retries: 6
+      <<: *healthcheck_defaults
+      test: ["CMD-SHELL", "nc -z localhost 9092"]
   clickhouse:
     <<: *restart_policy
     image: "yandex/clickhouse-server:20.3.9.70"
@@ -124,7 +138,7 @@ services:
       # You might want to change this to a higher value (and ensure your host has enough memory)
       MAX_MEMORY_USAGE_RATIO: 0.3
   geoipupdate:
-    image: "maxmindinc/geoipupdate:latest"
+    image: "maxmindinc/geoipupdate:v4.7.1"
     # Override the entrypoint in order to avoid using envvars for config.
     # Futz with settings so we can keep mmdb and conf in same dir on host
     # (image looks for them in separate dirs by default).
@@ -231,7 +245,7 @@ services:
     <<: *restart_policy
     ports:
       - "$SENTRY_BIND:80/tcp"
-    image: "nginx:1.16"
+    image: "nginx:1.21.0-alpine"
     volumes:
       - type: bind
         read_only: true
