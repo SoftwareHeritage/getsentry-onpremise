@@ -9,8 +9,7 @@ fi
 # Read .env for default values with a tip o' the hat to https://stackoverflow.com/a/59831605/90297
 t=$(mktemp) && export -p > "$t" && set -a && . ./.env && set +a && . "$t" && rm "$t" && unset t
 
-dc="docker-compose --no-ansi"
-dcr="$dc run --rm"
+source ./install/docker-aliases.sh
 
 # Thanks to https://unix.stackexchange.com/a/145654/108960
 log_file="sentry_install_log-`date +'%Y-%m-%d_%H-%M-%S'`.txt"
@@ -18,7 +17,8 @@ exec &> >(tee -a "$log_file")
 
 MIN_DOCKER_VERSION='19.03.6'
 MIN_COMPOSE_VERSION='1.24.1'
-MIN_RAM=2400 # MB
+MIN_RAM_HARD=4000 # MB
+MIN_RAM_SOFT=8000 # MB
 
 # Increase the default 10 second SIGTERM timeout
 # to ensure celery queues are properly drained
@@ -121,9 +121,11 @@ if [[ "$(ver $COMPOSE_VERSION)" -lt "$(ver $MIN_COMPOSE_VERSION)" ]]; then
   exit 1
 fi
 
-if [[ "$RAM_AVAILABLE_IN_DOCKER" -lt "$MIN_RAM" ]]; then
-  echo "FAIL: Expected minimum RAM available to Docker to be $MIN_RAM MB but found $RAM_AVAILABLE_IN_DOCKER MB"
+if [[ "$RAM_AVAILABLE_IN_DOCKER" -lt "$MIN_RAM_HARD" ]]; then
+  echo "FAIL: Required minimum RAM available to Docker is $MIN_RAM_HARD MB, found $RAM_AVAILABLE_IN_DOCKER MB"
   exit 1
+elif [[ "$RAM_AVAILABLE_IN_DOCKER" -lt "$MIN_RAM_SOFT" ]]; then
+  echo "WARN: Recommended minimum RAM available to Docker is $MIN_RAM_SOFT MB, found $RAM_AVAILABLE_IN_DOCKER MB"
 fi
 
 #SSE4.2 required by Clickhouse (https://clickhouse.yandex/docs/en/operations/requirements/)
@@ -325,7 +327,7 @@ if [[ ! -f "$RELAY_CREDENTIALS_JSON" ]]; then
 fi
 
 
-./install/geoip.sh
+source ./install/geoip.sh
 
 
 if [[ "$MINIMIZE_DOWNTIME" ]]; then
@@ -347,3 +349,5 @@ else
   echo "  docker-compose up -d"
   echo ""
 fi
+
+source ./install/py2-warning.sh
