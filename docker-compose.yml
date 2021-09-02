@@ -126,7 +126,7 @@ services:
   # Kafka consumer responsible for feeding events into Clickhouse
   snuba-consumer:
     <<: *snuba_defaults
-    command: consumer --storage events --auto-offset-reset=latest --max-batch-time-ms 750
+    command: consumer --storage errors --auto-offset-reset=latest --max-batch-time-ms 750
   # Kafka consumer responsible for feeding outcomes into Clickhouse
   # Use --auto-offset-reset=earliest to recover up to 7 days of TSDB data
   # since we did not do a proper migration
@@ -143,7 +143,7 @@ services:
     command: consumer --storage transactions --consumer-group transactions_group --auto-offset-reset=latest --max-batch-time-ms 750 --commit-log-topic=snuba-commit-log
   snuba-replacer:
     <<: *snuba_defaults
-    command: replacer --storage events --auto-offset-reset=latest --max-batch-size 3
+    command: replacer --storage errors --auto-offset-reset=latest --max-batch-size 3
   snuba-subscription-consumer-events:
     <<: *snuba_defaults
     command: subscriptions --auto-offset-reset=latest --consumer-group=snuba-events-subscriptions-consumers --topic=events --result-topic=events-subscription-results --dataset=events --commit-log-topic=snuba-commit-log --commit-log-group=snuba-consumers --delay-seconds=60 --schedule-ttl=60
@@ -157,7 +157,15 @@ services:
       context: ./cron
       args:
         BASE_IMAGE: "$SNUBA_IMAGE"
-    command: '"*/5 * * * * gosu snuba snuba cleanup --dry-run False"'
+    command: '"*/5 * * * * gosu snuba snuba cleanup --storage errors --dry-run False"'
+  snuba-transactions-cleanup:
+    <<: *snuba_defaults
+    image: snuba-cleanup-onpremise-local
+    build:
+      context: ./cron
+      args:
+        BASE_IMAGE: "$SNUBA_IMAGE"
+    command: '"*/5 * * * * gosu snuba snuba cleanup --storage transactions --dry-run False"'
   symbolicator:
     <<: *restart_policy
     image: "$SYMBOLICATOR_IMAGE"
