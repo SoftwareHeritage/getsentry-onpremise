@@ -1,14 +1,10 @@
 echo "${_group}Checking minimum requirements ..."
 
-MIN_DOCKER_VERSION='19.03.6'
-MIN_COMPOSE_VERSION='1.28.0'
-MIN_RAM_HARD=3800 # MB
-MIN_RAM_SOFT=7800 # MB
-MIN_CPU_HARD=2
-MIN_CPU_SOFT=4
+source "$(dirname $0)/_min-requirements.sh"
 
 DOCKER_VERSION=$(docker version --format '{{.Server.Version}}')
-COMPOSE_VERSION=$($dc --version | sed 's/docker-compose version \(.\{1,\}\),.*/\1/')
+# Do NOT use $dc instead of `docker-compose` below as older versions don't support certain options and fail
+COMPOSE_VERSION=$(docker-compose --version | sed 's/docker-compose version \(.\{1,\}\),.*/\1/')
 RAM_AVAILABLE_IN_DOCKER=$(docker run --rm busybox free -m 2>/dev/null | awk '/Mem/ {print $2}');
 CPU_AVAILABLE_IN_DOCKER=$(docker run --rm busybox nproc --all);
 
