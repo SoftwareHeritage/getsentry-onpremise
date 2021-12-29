@@ -9,7 +9,7 @@ x-healthcheck-defaults: &healthcheck_defaults
   # Related issues:
   # https://github.com/moby/moby/issues/39102
   # https://github.com/moby/moby/issues/39388
-  # https://github.com/getsentry/onpremise/issues/1000
+  # https://github.com/getsentry/self-hosted/issues/1000
   interval: 30s
   timeout: 5s
   retries: 5
@@ -215,7 +215,7 @@ services:
     command: subscriptions --auto-offset-reset=latest --consumer-group=snuba-transactions-subscriptions-consumers --topic=events --result-topic=transactions-subscription-results --dataset=transactions --commit-log-topic=snuba-commit-log --commit-log-group=transactions_group --delay-seconds=60 --schedule-ttl=60
   snuba-cleanup:
     <<: *snuba_defaults
-    image: snuba-cleanup-onpremise-local
+    image: snuba-cleanup-self-hosted-local
     build:
       context: ./cron
       args:
@@ -223,7 +223,7 @@ services:
     command: '"*/5 * * * * gosu snuba snuba cleanup --storage errors --dry-run False"'
   snuba-transactions-cleanup:
     <<: *snuba_defaults
-    image: snuba-cleanup-onpremise-local
+    image: snuba-cleanup-self-hosted-local
     build:
       context: ./cron
       args:
@@ -241,7 +241,7 @@ services:
     command: run -c /etc/symbolicator/config.yml
   symbolicator-cleanup:
     <<: *restart_policy
-    image: symbolicator-cleanup-onpremise-local
+    image: symbolicator-cleanup-self-hosted-local
     build:
       context: ./cron
       args:
@@ -280,7 +280,7 @@ services:
     command: run query-subscription-consumer --commit-batch-size 1 --topic transactions-subscription-results
   sentry-cleanup:
     <<: *sentry_defaults
-    image: sentry-cleanup-onpremise-local
+    image: sentry-cleanup-self-hosted-local
     build:
       context: ./cron
       args:
@@ -291,7 +291,7 @@ services:
     <<: *restart_policy
     ports:
       - "$SENTRY_BIND:80/tcp"
-    image: "nginx:1.21.0-alpine"
+    image: "nginx:1.21.4-alpine"
     volumes:
       - type: bind
         read_only: true
@@ -320,6 +320,7 @@ services:
       web:
         <<: *depends_on-healthy
 volumes:
+  # These store application data that should persist across restarts.
   sentry-data:
     external: true
   sentry-redis:
@@ -332,6 +333,8 @@ volumes:
     external: true
   sentry-symbolicator:
     external: true
+
+  # These store ephemeral data that needn't persist across restarts.
   sentry-secrets:
   sentry-zookeeper-log:
   sentry-kafka-log:
