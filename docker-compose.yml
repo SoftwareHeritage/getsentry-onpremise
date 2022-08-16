@@ -17,6 +17,8 @@ x-healthcheck-defaults: &healthcheck_defaults
 x-sentry-defaults: &sentry_defaults
   <<: *restart_policy
   image: sentry-self-hosted-local
+  # Set the platform to build for linux/arm64 when needed on Apple silicon Macs.
+  platform: ${DOCKER_PLATFORM:-}
   build:
     context: ./sentry
     args:
@@ -153,7 +155,12 @@ services:
       test: ["CMD-SHELL", "nc -z localhost 9092"]
   clickhouse:
     <<: *restart_policy
-    image: "yandex/clickhouse-server:20.3.9.70"
+    image: clickhouse-self-hosted-local
+    build:
+      context:
+        ./clickhouse
+      args:
+        BASE_IMAGE: "${CLICKHOUSE_IMAGE:-}"
     ulimits:
       nofile:
         soft: 262144
@@ -174,7 +181,10 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -nv -t1 --spider 'http://localhost:8123/' || exit 1",
+          # Manually override any http_proxy envvar that might be set, because
+          # this wget does not support no_proxy. See:
+          # https://github.com/getsentry/self-hosted/issues/1537
+          "http_proxy='' wget -nv -t1 --spider 'http://localhost:8123/' || exit 1",
         ]
       interval: 3s
       timeout: 600s
@@ -224,7 +234,7 @@ services:
       context: ./cron
       args:
         BASE_IMAGE: "$SNUBA_IMAGE"
-    command: '"*/5 * * * * gosu snuba snuba cleanup --storage errors --dry-run False"'
+    command: '"*/5 * * * * snuba cleanup --storage errors --dry-run False"'
   snuba-transactions-cleanup:
     <<: *snuba_defaults
     image: snuba-cleanup-self-hosted-local
@@ -232,7 +242,7 @@ services:
       context: ./cron
       args:
         BASE_IMAGE: "$SNUBA_IMAGE"
-    command: '"*/5 * * * * gosu snuba snuba cleanup --storage transactions --dry-run False"'
+    command: '"*/5 * * * * snuba cleanup --storage transactions --dry-run False"'
   symbolicator:
     <<: *restart_policy
     image: "$SYMBOLICATOR_IMAGE"
@@ -295,7 +305,7 @@ services:
     <<: *restart_policy
     ports:
       - "$SENTRY_BIND:80/tcp"
-    image: "nginx:1.21.6-alpine"
+    image: "nginx:1.22.0-alpine"
     volumes:
       - type: bind
         read_only: true
