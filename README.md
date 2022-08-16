@@ -1,4 +1,4 @@
-# Self-Hosted Sentry 22.4.0
+# Self-Hosted Sentry 22.5.0
 
 Official bootstrap for running your own [Sentry](https://sentry.io/) with [Docker](https://www.docker.com/).
 
@@ -59,5 +59,5 @@ sudo SENTRY_IMAGE=us.gcr.io/sentryio/sentry:83b1380 ./install.sh
 Where you replace `83b1380` with the sha you want to use.
 
 [build-status-image]: https://github.com/getsentry/self-hosted/workflows/test/badge.svg
-[build-status-url]: https://git.io/JUYkh
+[build-status-url]: https://github.com/getsentry/self-hosted/actions?query=workflow%3Atest+branch%3Amaster+event%3Apush
 
