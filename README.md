@@ -1,4 +1,4 @@
-# Self-Hosted Sentry 21.12.0
+# Self-Hosted Sentry 22.1.0
 
 Official bootstrap for running your own [Sentry](https://sentry.io/) with [Docker](https://www.docker.com/).
 
